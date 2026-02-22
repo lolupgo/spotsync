@@ -33,7 +33,7 @@ sp = Spotify(auth_manager=SpotifyOAuth(
 ))
 
 sp.auth_manager.refresh_token = SPOTIFY_REFRESH_TOKEN
-sp.auth_manager._refresh_access_token(SPOTIFY_REFRESH_TOKEN)
+sp.auth_manager.refresh_access_token(SPOTIFY_REFRESH_TOKEN)
 
 # -----------------------------
 # GOOGLE DRIVE AUTH
