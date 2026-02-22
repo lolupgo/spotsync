@@ -45,15 +45,8 @@ drive = build("drive", "v3", credentials=creds)
 # GET DRIVE FOLDER ID
 # -----------------------------
 
-def get_drive_folder_id():
-    query = f"name='{DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps/folder'"
-    results = drive.files().list(q=query, fields="files(id, name)").execute()
-    items = results.get("files", [])
-    if not items:
-        raise Exception("Drive folder not found")
-    return items[0]["id"]
 
-FOLDER_ID = get_drive_folder_id()
+FOLDER_ID ="1t6WlElAzNSwGuiZP113Fph_drdhRDtrJ"
 
 # -----------------------------
 # GET PLAYLIST TRACKS
