@@ -2,7 +2,7 @@ import os
 import json
 import subprocess
 from spotipy import Spotify
-from spotipy.oauth2 import SpotifyOAuth
+from spotipy.oauth2 import SpotifyClientCredentials
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -11,29 +11,24 @@ from googleapiclient.http import MediaFileUpload
 # CONFIG
 # -----------------------------
 
+SPOTIFY_PLAYLIST_ID = "5nQKQAuiLpVriHVqadFyVt"
 SPOTIFY_CLIENT_ID = os.environ["SPOTIFY_CLIENT_ID"]
 SPOTIFY_CLIENT_SECRET = os.environ["SPOTIFY_CLIENT_SECRET"]
-SPOTIFY_REFRESH_TOKEN = os.environ["SPOTIFY_REFRESH_TOKEN"]
 
 GOOGLE_CREDS_FILE = "service_account.json"
 DRIVE_FOLDER_NAME = "SpotifyMusic"
 STATE_FILE = "downloaded_songs.json"
 
 # -----------------------------
-# SPOTIFY AUTH
+# SPOTIFY AUTH (Client Credentials)
 # -----------------------------
 
-sp = Spotify(auth_manager=SpotifyOAuth(
+auth_manager = SpotifyClientCredentials(
     client_id=SPOTIFY_CLIENT_ID,
-    client_secret=SPOTIFY_CLIENT_SECRET,
-    redirect_uri="http://127.0.0.1:8888/callback",
-    scope="user-library-read",
-    open_browser=False,
-    cache_path=None
-))
+    client_secret=SPOTIFY_CLIENT_SECRET
+)
 
-sp.auth_manager.refresh_token = SPOTIFY_REFRESH_TOKEN
-sp.auth_manager.refresh_access_token(SPOTIFY_REFRESH_TOKEN)
+sp = Spotify(auth_manager=auth_manager)
 
 # -----------------------------
 # GOOGLE DRIVE AUTH
@@ -51,7 +46,7 @@ drive = build("drive", "v3", credentials=creds)
 # -----------------------------
 
 def get_drive_folder_id():
-    query = f"name='{DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder'"
+    query = f"name='{DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps/folder'"
     results = drive.files().list(q=query, fields="files(id, name)").execute()
     items = results.get("files", [])
     if not items:
@@ -61,30 +56,27 @@ def get_drive_folder_id():
 FOLDER_ID = get_drive_folder_id()
 
 # -----------------------------
-# GET LIKED SONGS
+# GET PLAYLIST TRACKS
 # -----------------------------
 
-def get_liked_songs():
-    songs = []
-    offset = 0
+def get_playlist_tracks(playlist_id):
+    results = sp.playlist_items(playlist_id, additional_types=['track'])
+    items = results["items"]
+    tracks = []
+    while results["next"]:
+        results = sp.next(results)
+        items.extend(results["items"])
 
-    while True:
-        results = sp.current_user_saved_tracks(limit=50, offset=offset)
-        items = results["items"]
-        if not items:
-            break
-
-        for item in items:
-            track = item["track"]
-            songs.append({
-                "id": track["id"],
-                "name": track["name"],
-                "artist": track["artists"][0]["name"]
-            })
-
-        offset += 50
-
-    return songs
+    for item in items:
+        track = item["track"]
+        if track is None:
+            continue
+        tracks.append({
+            "id": track["id"],
+            "name": track["name"],
+            "artist": track["artists"][0]["name"]
+        })
+    return tracks
 
 # -----------------------------
 # LOAD STATE
@@ -99,7 +91,7 @@ stored_tracks = {t["id"]: t for t in state["tracks"]}
 # SYNC LOGIC
 # -----------------------------
 
-current_tracks = get_liked_songs()
+current_tracks = get_playlist_tracks(SPOTIFY_PLAYLIST_ID)
 
 current_ids = {t["id"] for t in current_tracks}
 stored_ids = set(stored_tracks.keys())
@@ -107,14 +99,14 @@ stored_ids = set(stored_tracks.keys())
 new_ids = current_ids - stored_ids
 removed_ids = stored_ids - current_ids
 
-print(f"New songs: {len(new_ids)}")
-print(f"Removed songs: {len(removed_ids)}")
+print(f"New tracks: {len(new_ids)}")
+print(f"Removed tracks: {len(removed_ids)}")
 
 # Reverse to download oldest first
 current_tracks.reverse()
 
 # -----------------------------
-# DOWNLOAD NEW SONGS
+# DOWNLOAD NEW TRACKS
 # -----------------------------
 
 for track in current_tracks:
@@ -142,7 +134,7 @@ for track in current_tracks:
         os.remove(filename)
 
 # -----------------------------
-# DELETE REMOVED SONGS
+# DELETE REMOVED TRACKS
 # -----------------------------
 
 for track_id in removed_ids:
@@ -161,7 +153,7 @@ for track_id in removed_ids:
 
 new_state = []
 
-for track in current_tracks[::-1]:  # restore original order
+for track in current_tracks[::-1]:  # restore playlist order
     filename = f"{track['name']} - {track['artist']}.mp3"
     new_state.append({
         "id": track["id"],
