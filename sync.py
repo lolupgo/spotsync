@@ -26,7 +26,7 @@ STATE_FILE = "downloaded_songs.json"
 sp = Spotify(auth_manager=SpotifyOAuth(
     client_id=SPOTIFY_CLIENT_ID,
     client_secret=SPOTIFY_CLIENT_SECRET,
-    redirect_uri="http://localhost:8888/callback",
+    redirect_uri="http://127.0.0.1:8888/callback",
     scope="user-library-read",
     open_browser=False,
     cache_path=None
